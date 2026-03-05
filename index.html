@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>脱出ゲーム 進行管理</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: #0f0f0f;
+            color: #f0f0f0;
+            min-height: 100vh;
+            padding: 16px;
+        }
+
+        /* ===== エラー表示 ===== */
+        #error-screen {
+            display: none;
+            max-width: 480px;
+            margin: 80px auto;
+            color: #f66;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        /* ===== メイン画面 ===== */
+        #main-screen {
+            display: none;
+        }
+
+        /* タイマーエリア */
+        #timer-area {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        #timer {
+            font-size: 3rem;
+            font-variant-numeric: tabular-nums;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+        }
+
+        #timer.warning {
+            color: #f80;
+        }
+
+        #timer.danger {
+            color: #f44;
+        }
+
+        #diff {
+            font-size: 1.2rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #diff.positive {
+            color: #4f8;
+        }
+
+        #diff.negative {
+            color: #f66;
+        }
+
+        /* タイマーボタン */
+        #timer-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .ctrl-btn {
+            padding: 8px 16px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #1a1a1a;
+            color: #ccc;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .ctrl-btn:hover {
+            background: #2a2a2a;
+        }
+
+        /* シーン情報 */
+        #scene-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        #scene-name {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #ccc;
+        }
+
+        #scene-step {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        /* ステップ表示 */
+        #step-display {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #4af;
+            margin-bottom: 16px;
+        }
+
+        /* 台本エリア */
+        #script-area {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 20px;
+            font-size: 1.05rem;
+            line-height: 1.9;
+            white-space: pre-wrap;
+            min-height: 240px;
+            margin-bottom: 20px;
+            color: #e0e0e0;
+        }
+
+        /* ナビボタン */
+        #nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            flex: 1;
+            padding: 14px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #1a1a1a;
+            color: #ccc;
+            font-size: 1rem;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .nav-btn:hover:not(:disabled) {
+            background: #2a2a2a;
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
+
+        #btn-next {
+            background: #222;
+            color: #4af;
+            border-color: #4af;
+            font-weight: bold;
+        }
+
+        #btn-next:hover:not(:disabled) {
+            background: #1a2a3a;
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 480px) {
+            #timer {
+                font-size: 2.2rem;
+            }
+
+            #diff {
+                font-size: 1rem;
+            }
+
+            #script-area {
+                font-size: 0.95rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="error-screen"></div>
+
+    <div id="main-screen">
+        <div id="timer-area">
+            <div id="timer">30:00</div>
+            <div id="diff"></div>
+        </div>
+        <div id="timer-controls">
+            <button class="ctrl-btn" onclick="startTimer()">▶ 開始</button>
+            <button class="ctrl-btn" onclick="pauseTimer()">⏸ 一時停止</button>
+            <button class="ctrl-btn" onclick="resetTimer()">↺ リセット</button>
+        </div>
+
+        <div id="scene-info">
+            <div id="scene-name">—</div>
+            <div id="scene-step">—</div>
+        </div>
+        <div id="step-display">—</div>
+        <div id="script-area"></div>
+
+        <div id="nav-buttons">
+            <button class="nav-btn" id="btn-prev" onclick="moveStep(-1)">◀ 前</button>
+            <button class="nav-btn" id="btn-next" onclick="moveStep(1)">次 ▶</button>
+        </div>
+    </div>
+
+    <script>
+        // ===== スプレッドシートID（ここを変更するだけでデータ先を切り替えられる） =====
+        const SHEET_ID = '1A4LyHfqfTOxgDDR0yHc_fZcBSYmhlvMxYSC4Ud3NdEI';
+        const SHEET_NAME = 'シート1';
+
+        // ===== データ =====
+        let scenes = [];   // [{name, steps: [{label, clearTime, script}]}]
+        let currentScene = 0;
+        let currentStep = 0;
+
+        // ===== タイマー =====
+        const TOTAL_SEC = 30 * 60;
+        let remaining = TOTAL_SEC;
+        let timerRunning = false;
+        let timerInterval = null;
+
+        // ===== 起動時にスプレッドシートを自動読み込み =====
+        window.addEventListener('DOMContentLoaded', async () => {
+            const csvUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+            try {
+                const res = await fetch(csvUrl);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const text = await res.text();
+                parseCSV(text);
+                document.getElementById('main-screen').style.display = 'block';
+                renderStep();
+            } catch (e) {
+                const el = document.getElementById('error-screen');
+                el.style.display = 'block';
+                el.textContent = 'データの読み込みに失敗しました: ' + e.message;
+            }
+        });
+
+        // ===== CSV パース =====
+        // フォーマット（1行目はヘッダー）:
+        // A: シーン名 | B: ステップ名 | C: 想定タイム(mm:ss) | D: 台本
+        // 同じシーン名が続く行は同じシーンに属する
+        // 台本列が空でシーン名・ステップ名も空の行は、直前のステップの台本の続き（改行）として扱う
+        function parseCSV(text) {
+            const rows = csvToArray(text);
+            if (rows.length < 2) throw new Error('データが空です');
+
+            scenes = [];
+            let lastSceneName = null;
+
+            for (let i = 1; i < rows.length; i++) {
+                const [sceneName, stepLabel, clearTime, script] = rows[i];
+
+                // シーン名もステップ名もない → 直前ステップの台本に改行して追記
+                if (!sceneName && !stepLabel) {
+                    if (scenes.length > 0) {
+                        const lastScene = scenes[scenes.length - 1];
+                        if (lastScene.steps.length > 0) {
+                            lastScene.steps[lastScene.steps.length - 1].script += '\n' + (script || '');
+                        }
+                    }
+                    continue;
+                }
+
+                if (sceneName && sceneName !== lastSceneName) {
+                    scenes.push({ name: sceneName, steps: [] });
+                    lastSceneName = sceneName;
+                }
+                if (stepLabel !== undefined) {
+                    scenes[scenes.length - 1].steps.push({
+                        label: stepLabel || '',
+                        clearTime: parseTime(clearTime),
+                        script: script || ''
+                    });
+                }
+            }
+            currentScene = 0;
+            currentStep = 0;
+        }
+
+        function parseTime(str) {
+            if (!str) return 0;
+            const parts = str.trim().split(':');
+            if (parts.length === 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+            return parseInt(str) || 0;
+        }
+
+        // セル内改行（"...\n..."）に対応したCSVパーサー
+        // 文字列全体を1文字ずつ読み、ダブルクォート内の改行は行区切りとして扱わない
+        function csvToArray(text) {
+            const rows = [];
+            let cur = '', inQ = false, row = [];
+
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+                if (c === '"') {
+                    if (inQ && text[i + 1] === '"') { cur += '"'; i++; } // エスケープ ""
+                    else inQ = !inQ;
+                } else if (c === ',' && !inQ) {
+                    row.push(cur); cur = '';
+                } else if ((c === '\n' || (c === '\r' && text[i + 1] === '\n')) && !inQ) {
+                    if (c === '\r') i++; // \r\n を1つとして処理
+                    row.push(cur); cur = '';
+                    if (row.some(cell => cell.trim())) rows.push(row); // 空行はスキップ
+                    row = [];
+                } else {
+                    cur += c;
+                }
+            }
+            // 最終行
+            row.push(cur);
+            if (row.some(cell => cell.trim())) rows.push(row);
+
+            return rows;
+        }
+
+        // ===== タイマー =====
+        function startTimer() {
+            if (timerRunning) return;
+            timerRunning = true;
+            timerInterval = setInterval(() => {
+                remaining--;
+                if (remaining <= 0) { remaining = 0; clearInterval(timerInterval); timerRunning = false; }
+                updateTimerDisplay();
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            clearInterval(timerInterval);
+            timerRunning = false;
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            remaining = TOTAL_SEC;
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const timerEl = document.getElementById('timer');
+            const diffEl = document.getElementById('diff');
+
+            timerEl.textContent = formatTime(remaining);
+            timerEl.className = remaining <= 60 ? 'danger' : remaining <= 300 ? 'warning' : '';
+
+            const curStep = scenes[currentScene] && scenes[currentScene].steps[currentStep];
+            if (curStep && curStep.clearTime > 0) {
+                // 想定タイム = ゲーム開始からの経過時間
+                // このステップにいるべき残り時間 = TOTAL_SEC - clearTime
+                const expectedRemaining = TOTAL_SEC - curStep.clearTime;
+                const diff = remaining - expectedRemaining; // +なら早い、-なら遅れ
+                const sign = diff >= 0 ? '+' : '-';
+                diffEl.textContent = sign + formatTime(Math.abs(diff));
+                diffEl.className = diff >= 0 ? 'positive' : 'negative';
+            } else {
+                diffEl.textContent = '';
+                diffEl.className = '';
+            }
+        }
+
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60).toString().padStart(2, '0');
+            const s = (sec % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        // ===== シーン・ステップ表示 =====
+        function moveStep(dir) {
+            if (scenes.length === 0) return;
+            const scene = scenes[currentScene];
+            const newStep = currentStep + dir;
+
+            if (newStep < 0) {
+                if (currentScene > 0) {
+                    currentScene--;
+                    currentStep = scenes[currentScene].steps.length - 1;
+                }
+            } else if (newStep >= scene.steps.length) {
+                if (currentScene < scenes.length - 1) {
+                    currentScene++;
+                    currentStep = 0;
+                }
+            } else {
+                currentStep = newStep;
+            }
+            renderStep();
+        }
+
+        function renderStep() {
+            if (scenes.length === 0) return;
+            const scene = scenes[currentScene];
+            const step = scene.steps[currentStep] || { label: '—', script: '—' };
+
+            document.getElementById('scene-name').textContent = scene.name;
+            document.getElementById('scene-step').textContent = `${currentStep + 1} / ${scene.steps.length}`;
+            document.getElementById('step-display').textContent = step.label;
+            document.getElementById('script-area').textContent = step.script;
+
+            document.getElementById('btn-prev').disabled =
+                currentScene === 0 && currentStep === 0;
+            document.getElementById('btn-next').disabled =
+                currentScene === scenes.length - 1 && currentStep === scene.steps.length - 1;
+
+            updateTimerDisplay();
+        }
+    </script>
+</body>
+
+</html>
