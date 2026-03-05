@@ -223,6 +223,18 @@
             background: #2a2a2a;
         }
 
+        /* みかんエリア */
+        #mikan-area {
+            display: flex;
+            flex-direction: column-reverse;
+            /* 下から積み上がる */
+            align-items: center;
+            font-size: 2rem;
+            line-height: 1.1;
+            padding-top: 4px;
+            min-width: 2.5rem;
+        }
+
         /* ナビボタン（画面下部固定） */
         #nav-buttons {
             position: fixed;
@@ -287,14 +299,24 @@
 
     <div id="main-screen">
         <button id="role-btn" onclick="switchRole()">はくまい司会</button>
-        <div id="timer-area">
-            <div id="timer">30:00</div>
-            <div id="diff"></div>
-        </div>
-        <div id="timer-controls">
-            <button class="ctrl-btn" onclick="startTimer()">▶ 開始</button>
-            <button class="ctrl-btn" onclick="pauseTimer()">⏸ 一時停止</button>
-            <button class="ctrl-btn" onclick="resetTimer()">↺ リセット</button>
+        <div style="display:flex; align-items:flex-start; gap:12px;">
+            <div style="flex:1; min-width:0;">
+                <div id="timer-area">
+                    <div id="timer">30:00</div>
+                    <div id="diff"></div>
+                </div>
+                <div id="timer-controls">
+                    <button class="ctrl-btn" onclick="startTimer()">▶ 開始</button>
+                    <button class="ctrl-btn" onclick="pauseTimer()">⏸ 一時停止</button>
+                    <button class="ctrl-btn" onclick="resetTimer()">↺ リセット</button>
+                </div>
+                <div id="debug-area">
+                    <label>デバッグ（mm:ss）</label>
+                    <input type="text" id="debug-input" placeholder="15:00" />
+                    <button id="btn-debug-set" onclick="debugSetTime()">セット</button>
+                </div>
+            </div>
+            <div id="mikan-area"></div>
         </div>
 
         <div id="scene-info">
@@ -307,12 +329,6 @@
         <div id="announce-area">
             <div id="announce-text"></div>
             <button id="btn-announced" onclick="dismissAnnounce()">アナウンスした ✓</button>
-        </div>
-
-        <div id="debug-area">
-            <label>残り時間を変更（mm:ss）</label>
-            <input type="text" id="debug-input" placeholder="15:00" />
-            <button id="btn-debug-set" onclick="debugSetTime()">セット</button>
         </div>
 
         <div id="nav-buttons">
@@ -519,18 +535,22 @@
             timerEl.className = remaining <= 60 ? 'danger' : remaining <= 300 ? 'warning' : '';
 
             const curStep = scenes[currentScene] && scenes[currentScene].steps[currentStep];
+            let overSec = 0; // 超過秒数（マイナスのとき）
             if (curStep && curStep.clearTime > 0) {
-                // 想定タイム = ゲーム開始からの経過時間
-                // このステップにいるべき残り時間 = TOTAL_SEC - clearTime
                 const expectedRemaining = TOTAL_SEC - curStep.clearTime;
-                const diff = remaining - expectedRemaining; // +なら早い、-なら遅れ
+                const diff = remaining - expectedRemaining;
                 const sign = diff >= 0 ? '+' : '-';
                 diffEl.textContent = sign + formatTime(Math.abs(diff));
                 diffEl.className = diff >= 0 ? 'positive' : 'negative';
+                if (diff < 0) overSec = Math.abs(diff); // 遅れている秒数
             } else {
                 diffEl.textContent = '';
                 diffEl.className = '';
             }
+
+            // みかん：10秒超過ごとに1個
+            const mikanCount = Math.floor(overSec / 10);
+            document.getElementById('mikan-area').textContent = '🍊'.repeat(mikanCount);
         }
 
         function formatTime(sec) {
