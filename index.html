@@ -35,20 +35,20 @@
             display: none;
         }
 
-        /* タイマーエリア */
         #timer-area {
             display: flex;
             align-items: baseline;
-            gap: 16px;
+            gap: 4vw;
             margin-bottom: 16px;
         }
 
         #timer {
-            font-size: 5rem;
+            font-size: 18vw;
             font-variant-numeric: tabular-nums;
             font-weight: bold;
-            letter-spacing: 2px;
+            letter-spacing: 0.02em;
             color: #fff;
+            line-height: 1;
         }
 
         #timer.warning {
@@ -60,7 +60,7 @@
         }
 
         #diff {
-            font-size: 2rem;
+            font-size: 6vw;
             font-variant-numeric: tabular-nums;
         }
 
@@ -142,12 +142,12 @@
 
         .nav-btn {
             flex: 1;
-            padding: 56px 14px;
+            padding: 28px 14px;
             border: 1px solid #444;
             border-radius: 4px;
             background: #1a1a1a;
             color: #ccc;
-            font-size: 2.4rem;
+            font-size: 1.2rem;
             cursor: pointer;
             text-align: center;
         }
@@ -174,14 +174,6 @@
 
         /* レスポンシブ */
         @media (max-width: 480px) {
-            #timer {
-                font-size: 7.0rem;
-            }
-
-            #diff {
-                font-size: 3.0rem;
-            }
-
             #script-area {
                 font-size: 0.95rem;
             }
@@ -416,7 +408,7 @@
                 currentScene === scenes.length - 1 && currentStep === scene.steps.length - 1;
 
             // シーン名が「1問目」になったら自動タイマースタート
-            if (step.label === '1問目' && !timerRunning) startTimer();
+            if (scene.name === '1問目' && !timerRunning) startTimer();
 
             updateTimerDisplay();
         }
