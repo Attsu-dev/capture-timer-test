@@ -154,6 +154,75 @@
             color: #e0e0e0;
         }
 
+        /* アナウンス通知エリア */
+        #announce-area {
+            display: none;
+            background: #2a1a00;
+            border: 1px solid #f80;
+            border-radius: 6px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+        }
+
+        #announce-text {
+            font-size: 1.2rem;
+            color: #f80;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+
+        #btn-announced {
+            padding: 10px 24px;
+            background: #f80;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #btn-announced:hover {
+            background: #fa0;
+        }
+
+        /* デバッグエリア */
+        #debug-area {
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #debug-area label {
+            font-size: 0.75rem;
+            color: #555;
+        }
+
+        #debug-input {
+            width: 80px;
+            padding: 4px 8px;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #888;
+            font-size: 0.8rem;
+        }
+
+        #btn-debug-set {
+            padding: 4px 10px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #666;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        #btn-debug-set:hover {
+            background: #2a2a2a;
+        }
+
         /* ナビボタン（画面下部固定） */
         #nav-buttons {
             position: fixed;
@@ -235,6 +304,17 @@
         <div id="step-display">—</div>
         <div id="script-area"></div>
 
+        <div id="announce-area">
+            <div id="announce-text"></div>
+            <button id="btn-announced" onclick="dismissAnnounce()">アナウンスした ✓</button>
+        </div>
+
+        <div id="debug-area">
+            <label>残り時間を変更（mm:ss）</label>
+            <input type="text" id="debug-input" placeholder="15:00" />
+            <button id="btn-debug-set" onclick="debugSetTime()">セット</button>
+        </div>
+
         <div id="nav-buttons">
             <button class="nav-btn" id="btn-prev" onclick="moveStep(-1)">◀ 前</button>
             <button class="nav-btn" id="btn-next" onclick="moveStep(1)">次 ▶</button>
@@ -259,6 +339,7 @@
             currentRole = (currentRole + 1) % ROLES.length;
             document.getElementById('role-btn').textContent = ROLES[currentRole];
             renderStep();
+            updateAnnounce();
         }
 
         // ===== タイマー =====
@@ -365,6 +446,48 @@
             return rows;
         }
 
+        // ===== アナウンス =====
+        // 残り時間（秒）→ アナウンス文言。falseになったら非表示
+        const ANNOUNCE_TIMES = [15 * 60, 10 * 60, 5 * 60]; // 15分・10分・5分
+        const dismissed = new Set(); // 「アナウンスした」を押した残り時間
+
+        function updateAnnounce() {
+            // OBSロールは表示しない
+            if (currentRole === 2) {
+                document.getElementById('announce-area').style.display = 'none';
+                return;
+            }
+            const area = document.getElementById('announce-area');
+            // 現在表示中かどうか確認
+            const activeTime = ANNOUNCE_TIMES.find(t => remaining <= t && remaining > t - 60 && !dismissed.has(t));
+            if (activeTime !== undefined) {
+                const min = activeTime / 60;
+                document.getElementById('announce-text').textContent = `アナウンス「残り${min}分です！」`;
+                area.style.display = 'block';
+            } else {
+                area.style.display = 'none';
+            }
+        }
+
+        function dismissAnnounce() {
+            const activeTime = ANNOUNCE_TIMES.find(t => remaining <= t && remaining > t - 60 && !dismissed.has(t));
+            if (activeTime !== undefined) dismissed.add(activeTime);
+            document.getElementById('announce-area').style.display = 'none';
+        }
+
+        // ===== デバッグ：残り時間を手動セット =====
+        function debugSetTime() {
+            const val = document.getElementById('debug-input').value.trim();
+            const parts = val.split(':');
+            let sec = 0;
+            if (parts.length === 2) sec = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+            else sec = parseInt(val);
+            if (isNaN(sec) || sec < 0 || sec > TOTAL_SEC) return;
+            remaining = sec;
+            updateTimerDisplay();
+            updateAnnounce();
+        }
+
         // ===== タイマー =====
         function startTimer() {
             if (timerRunning) return;
@@ -373,6 +496,7 @@
                 remaining--;
                 if (remaining <= 0) { remaining = 0; clearInterval(timerInterval); timerRunning = false; }
                 updateTimerDisplay();
+                updateAnnounce();
             }, 1000);
         }
 
