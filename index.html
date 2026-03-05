@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>脱出ゲーム 進行管理</title>
+    <title>きゃぷちゃ！スタッフ用アプリ</title>
     <style>
         * {
             box-sizing: border-box;
@@ -17,7 +17,8 @@
             background: #0f0f0f;
             color: #f0f0f0;
             min-height: 100vh;
-            padding: 16px;
+            padding: 16px 16px 100px;
+            /* 下部ボタン分の余白 */
         }
 
         /* ===== エラー表示 ===== */
@@ -134,17 +135,23 @@
             color: #e0e0e0;
         }
 
-        /* ナビボタン */
+        /* ナビボタン（画面下部固定） */
         #nav-buttons {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
             display: flex;
-            gap: 10px;
+            gap: 0;
+            background: #0f0f0f;
+            border-top: 1px solid #333;
         }
 
         .nav-btn {
             flex: 1;
             padding: 28px 14px;
-            border: 1px solid #444;
-            border-radius: 4px;
+            border: none;
+            border-radius: 0;
             background: #1a1a1a;
             color: #ccc;
             font-size: 1.2rem;
@@ -407,8 +414,8 @@
             document.getElementById('btn-next').disabled =
                 currentScene === scenes.length - 1 && currentStep === scene.steps.length - 1;
 
-            // シーン名が「1問目」になったら自動タイマースタート
-            if (scene.name === '1問目' && !timerRunning) startTimer();
+            // ステップ名が「1問目」になったら自動タイマースタート
+            if (step.label === '1問目' && !timerRunning) startTimer();
 
             updateTimerDisplay();
         }
