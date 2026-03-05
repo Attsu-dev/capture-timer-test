@@ -121,6 +121,25 @@
             margin-bottom: 16px;
         }
 
+        /* 役割切り替えボタン */
+        #role-btn {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            padding: 6px 12px;
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #ccc;
+            font-size: 0.8rem;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        #role-btn:hover {
+            background: #333;
+        }
+
         /* 台本エリア */
         #script-area {
             background: #1a1a1a;
@@ -198,14 +217,15 @@
     <div id="error-screen"></div>
 
     <div id="main-screen">
+        <button id="role-btn" onclick="switchRole()">はくまい司会</button>
+        <div id="timer-area">
+            <div id="timer">30:00</div>
+            <div id="diff"></div>
+        </div>
         <div id="timer-controls">
             <button class="ctrl-btn" onclick="startTimer()">▶ 開始</button>
             <button class="ctrl-btn" onclick="pauseTimer()">⏸ 一時停止</button>
             <button class="ctrl-btn" onclick="resetTimer()">↺ リセット</button>
-        </div>
-        <div id="timer-area">
-            <div id="timer">30:00</div>
-            <div id="diff"></div>
         </div>
 
         <div id="scene-info">
@@ -227,9 +247,19 @@
         const SHEET_NAME = 'シート1';
 
         // ===== データ =====
-        let scenes = [];   // [{name, steps: [{label, clearTime, script}]}]
+        let scenes = [];   // [{name, steps: [{label, clearTime, hakumai, pureha, obs}]}]
         let currentScene = 0;
         let currentStep = 0;
+
+        // ===== 役割 =====
+        const ROLES = ['はくまい司会', 'ぷれはち司会', 'OBS'];
+        let currentRole = 0; // 0=はくまい, 1=ぷれはち, 2=OBS
+
+        function switchRole() {
+            currentRole = (currentRole + 1) % ROLES.length;
+            document.getElementById('role-btn').textContent = ROLES[currentRole];
+            renderStep();
+        }
 
         // ===== タイマー =====
         const TOTAL_SEC = 30 * 60;
@@ -256,9 +286,7 @@
 
         // ===== CSV パース =====
         // フォーマット（1行目はヘッダー）:
-        // A: シーン名 | B: ステップ名 | C: 想定タイム(mm:ss) | D: 台本
-        // 同じシーン名が続く行は同じシーンに属する
-        // 台本列が空でシーン名・ステップ名も空の行は、直前のステップの台本の続き（改行）として扱う
+        // A: シーン名 | B: ステップ名 | C: 想定タイム | D: はくまい司会 | E: ぷれはち司会 | F: OBS
         function parseCSV(text) {
             const rows = csvToArray(text);
             if (rows.length < 2) throw new Error('データが空です');
@@ -267,14 +295,17 @@
             let lastSceneName = null;
 
             for (let i = 1; i < rows.length; i++) {
-                const [sceneName, stepLabel, clearTime, script] = rows[i];
+                const [sceneName, stepLabel, clearTime, hakumai, pureha, obs] = rows[i];
 
-                // シーン名もステップ名もない → 直前ステップの台本に改行して追記
+                // シーン名もステップ名もない → 直前ステップの各台本に改行して追記
                 if (!sceneName && !stepLabel) {
                     if (scenes.length > 0) {
                         const lastScene = scenes[scenes.length - 1];
                         if (lastScene.steps.length > 0) {
-                            lastScene.steps[lastScene.steps.length - 1].script += '\n' + (script || '');
+                            const last = lastScene.steps[lastScene.steps.length - 1];
+                            last.hakumai += '\n' + (hakumai || '');
+                            last.pureha += '\n' + (pureha || '');
+                            last.obs += '\n' + (obs || '');
                         }
                     }
                     continue;
@@ -288,7 +319,9 @@
                     scenes[scenes.length - 1].steps.push({
                         label: stepLabel || '',
                         clearTime: parseTime(clearTime),
-                        script: script || ''
+                        hakumai: hakumai || '',
+                        pureha: pureha || '',
+                        obs: obs || '',
                     });
                 }
             }
@@ -407,12 +440,15 @@
         function renderStep() {
             if (scenes.length === 0) return;
             const scene = scenes[currentScene];
-            const step = scene.steps[currentStep] || { label: '—', script: '—' };
+            const step = scene.steps[currentStep] || { label: '—', hakumai: '—', pureha: '—', obs: '—' };
+
+            // 現在の役割に対応する台本を選択
+            const scriptKey = ['hakumai', 'pureha', 'obs'][currentRole];
 
             document.getElementById('scene-name').textContent = scene.name;
             document.getElementById('scene-step').textContent = `${currentStep + 1} / ${scene.steps.length}`;
             document.getElementById('step-display').textContent = step.label;
-            document.getElementById('script-area').textContent = step.script;
+            document.getElementById('script-area').textContent = step[scriptKey];
 
             document.getElementById('btn-prev').disabled =
                 currentScene === 0 && currentStep === 0;
